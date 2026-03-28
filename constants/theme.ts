@@ -1,41 +1,45 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+const tintColorLight = '#1F6F63';
+const tintColorDark = '#EAF6F3';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: '#11221E',
+    background: '#F4F8F6',
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: '#64827C',
+    tabIconDefault: '#64827C',
     tabIconSelected: tintColorLight,
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
+    text: '#EAF6F3',
+    background: '#12211E',
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
+    icon: '#A3C7C0',
+    tabIconDefault: '#A3C7C0',
     tabIconSelected: tintColorDark,
   },
 };
 
+export const AppColors = {
+  background: '#F4F8F6',
+  card: '#FFFFFF',
+  cardAlt: '#F8FBFA',
+  hero: '#D8EEE7',
+  ink: '#16302A',
+  subtleText: '#4E6A63',
+  accent: '#6FB7A7',
+  accentSoft: '#E2F5EF',
+  accentDeep: '#1F6F63',
+  line: '#C8DDD7',
+};
+
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {
@@ -45,9 +49,15 @@ export const Fonts = Platform.select({
     mono: 'monospace',
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    sans: "Avenir Next, Nunito Sans, system-ui, sans-serif",
+    serif: "Iowan Old Style, Georgia, serif",
+    rounded: "'Avenir Next Rounded', 'Trebuchet MS', sans-serif",
+    mono: "'IBM Plex Mono', 'Courier New', monospace",
   },
 });
+
+export const AppFonts = {
+  body: Fonts.sans,
+  display: Fonts.rounded,
+  mono: Fonts.mono,
+};

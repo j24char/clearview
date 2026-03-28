@@ -1,98 +1,162 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { ServiceCard } from '@/components/service-card';
+import { SurfaceCard } from '@/components/surface-card';
+import { businessHighlights, testimonials } from '@/data/mock-data';
+import { AppColors, AppFonts } from '@/constants/theme';
+import { useServices } from '@/lib/firestore-data';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const { data: services } = useServices();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <SurfaceCard style={styles.heroCard}>
+        <Text style={styles.eyebrow}>CLEARVIEW WINDOW WASHING</Text>
+        <Text style={styles.heroTitle}>Bright windows. Simple booking. Local service you can trust.</Text>
+        <Text style={styles.heroBody}>
+          Clearview helps homeowners book residential window washing in a few taps, with clear
+          pricing, reliable scheduling, and a payment flow ready for Stripe when you are.
+        </Text>
+        <View style={styles.heroActions}>
+          <Link href="/schedule" style={styles.primaryAction}>
+            Book a Service
+          </Link>
+          <Link href="/signin" style={styles.secondaryAction}>
+            Sign In / Sign Up
+          </Link>
+        </View>
+      </SurfaceCard>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Services</Text>
+        <Text style={styles.sectionCopy}>Live services from Firestore, with starter highlights below.</Text>
+      </View>
+      {services.slice(0, 3).map((service) => (
+        <ServiceCard key={service.id} service={service} />
+      ))}
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Why customers book with us</Text>
+      </View>
+      <View style={styles.highlightGrid}>
+        {businessHighlights.map((item) => (
+          <SurfaceCard key={item.title} style={styles.highlightCard}>
+            <Text style={styles.highlightTitle}>{item.title}</Text>
+            <Text style={styles.highlightCopy}>{item.description}</Text>
+          </SurfaceCard>
+        ))}
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Testimonials</Text>
+      </View>
+      {testimonials.map((quote) => (
+        <SurfaceCard key={quote.name}>
+          <Text style={styles.quote}>"{quote.quote}"</Text>
+          <Text style={styles.quoteAuthor}>{quote.name}</Text>
+        </SurfaceCard>
+      ))}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  screen: {
+    flex: 1,
+    backgroundColor: AppColors.background,
+  },
+  content: {
+    padding: 20,
+    gap: 16,
+  },
+  heroCard: {
+    backgroundColor: AppColors.hero,
+    gap: 14,
+  },
+  eyebrow: {
+    color: AppColors.accentDeep,
+    fontFamily: AppFonts.mono,
+    fontSize: 12,
+    letterSpacing: 1.3,
+  },
+  heroTitle: {
+    color: AppColors.ink,
+    fontFamily: AppFonts.display,
+    fontSize: 34,
+    lineHeight: 40,
+  },
+  heroBody: {
+    color: AppColors.subtleText,
+    fontFamily: AppFonts.body,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  heroActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  primaryAction: {
+    backgroundColor: AppColors.ink,
+    borderRadius: 999,
+    color: AppColors.background,
+    overflow: 'hidden',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  secondaryAction: {
+    borderColor: AppColors.ink,
+    borderRadius: 999,
+    borderWidth: 1,
+    color: AppColors.ink,
+    overflow: 'hidden',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  sectionHeader: {
+    gap: 4,
+    marginTop: 8,
+  },
+  sectionTitle: {
+    color: AppColors.ink,
+    fontFamily: AppFonts.display,
+    fontSize: 24,
+  },
+  sectionCopy: {
+    color: AppColors.subtleText,
+    fontFamily: AppFonts.body,
+    fontSize: 15,
+  },
+  highlightGrid: {
+    gap: 12,
+  },
+  highlightCard: {
+    gap: 6,
+  },
+  highlightTitle: {
+    color: AppColors.ink,
+    fontFamily: AppFonts.display,
+    fontSize: 18,
+  },
+  highlightCopy: {
+    color: AppColors.subtleText,
+    fontFamily: AppFonts.body,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  quote: {
+    color: AppColors.ink,
+    fontFamily: AppFonts.body,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  quoteAuthor: {
+    color: AppColors.accentDeep,
+    fontFamily: AppFonts.mono,
+    fontSize: 13,
+    marginTop: 10,
+    textTransform: 'uppercase',
   },
 });

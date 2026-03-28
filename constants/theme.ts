@@ -6,7 +6,7 @@ const tintColorDark = '#EAF6F3';
 export const Colors = {
   light: {
     text: '#11221E',
-    background: '#F4F8F6',
+    background: '#ffffff',
     tint: tintColorLight,
     icon: '#64827C',
     tabIconDefault: '#64827C',
@@ -23,7 +23,7 @@ export const Colors = {
 };
 
 export const AppColors = {
-  background: '#F4F8F6',
+  background: '#ffffff',
   card: '#FFFFFF',
   cardAlt: '#F8FBFA',
   hero: '#D8EEE7',
@@ -59,5 +59,5 @@ export const Fonts = Platform.select({
 export const AppFonts = {
   body: Fonts.sans,
   display: Fonts.rounded,
-  mono: Fonts.mono,
+  mono: Fonts.sans,
 };

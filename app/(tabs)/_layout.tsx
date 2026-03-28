@@ -1,6 +1,6 @@
 import { Link, Tabs, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -60,6 +60,10 @@ function HeaderAccountMenu() {
   );
 }
 
+function HeaderLogo() {
+  return <Image source={require('@/assets/images/Clearview.png')} style={styles.logo} resizeMode="contain" />;
+}
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { isAdmin } = useAuth();
@@ -79,26 +83,27 @@ export default function TabLayout() {
           fontSize: 22,
         },
         headerShadowVisible: false,
+        headerLeft: HeaderLogo,
         headerRight: HeaderAccountMenu,
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: '',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="services"
         options={{
-          title: 'Services',
+          title: '',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="sparkles" color={color} />,
         }}
       />
       <Tabs.Screen
         name="schedule"
         options={{
-          title: 'Schedule',
+          title: '',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
       />
@@ -106,7 +111,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="admin"
           options={{
-            title: 'Admin',
+            title: '',
             tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.2.fill" color={color} />,
           }}
         />
@@ -119,6 +124,11 @@ const styles = StyleSheet.create({
   menuWrap: {
     marginRight: 12,
     position: 'relative',
+  },
+  logo: {
+    height: 70,
+    marginLeft: 12,
+    width: 220,
   },
   accountLink: {
     alignItems: 'center',
@@ -153,7 +163,7 @@ const styles = StyleSheet.create({
   },
   menuItem: {
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 15,
   },
   menuText: {
     color: AppColors.ink,

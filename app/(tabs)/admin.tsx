@@ -15,12 +15,17 @@ import {
 import { SurfaceCard } from '@/components/surface-card';
 import { AppColors, AppFonts } from '@/constants/theme';
 import { db } from '@/lib/firebase';
-import { useOrders, useServices } from '@/lib/firestore-data';
+import { useDiscountCodes, useOrders, useServices } from '@/lib/firestore-data';
 import { useAuth } from '@/providers/auth-provider';
 
 export default function AdminScreen() {
   const { isAdmin, loading, user, userProfile } = useAuth();
   const { data: services, loading: servicesLoading, error: servicesError } = useServices();
+  const {
+    data: discountCodes,
+    loading: discountCodesLoading,
+    error: discountCodesError,
+  } = useDiscountCodes();
   const { data: orders, loading: ordersLoading, error: ordersError } = useOrders();
   const [serviceName, setServiceName] = useState('');
   const [serviceDescription, setServiceDescription] = useState('');
@@ -28,6 +33,11 @@ export default function AdminScreen() {
   const [serviceStatus, setServiceStatus] = useState<'idle' | 'saving'>('idle');
   const [serviceFeedback, setServiceFeedback] = useState('');
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
+  const [discountCode, setDiscountCode] = useState('');
+  const [discountPercent, setDiscountPercent] = useState('');
+  const [discountStatus, setDiscountStatus] = useState<'idle' | 'saving'>('idle');
+  const [discountFeedback, setDiscountFeedback] = useState('');
+  const [deletingDiscountId, setDeletingDiscountId] = useState<string | null>(null);
 
   if (!loading && (!user || !isAdmin)) {
     return <Redirect href="/" />;
@@ -86,6 +96,80 @@ export default function AdminScreen() {
     } finally {
       setDeletingServiceId(null);
     }
+  };
+
+  const handleCreateDiscountCode = async () => {
+    const trimmedCode = discountCode.trim().toUpperCase();
+    const parsedPercent = Number(discountPercent);
+
+    if (!trimmedCode || !discountPercent.trim()) {
+      setDiscountFeedback('Enter a code and a percentage discount.');
+      return;
+    }
+
+    if (!Number.isFinite(parsedPercent) || parsedPercent <= 0 || parsedPercent >= 100) {
+      setDiscountFeedback('Discount percentage must be greater than 0 and less than 100.');
+      return;
+    }
+
+    setDiscountStatus('saving');
+    setDiscountFeedback('');
+
+    try {
+      await addDoc(collection(db, 'discountCodes'), {
+        code: trimmedCode,
+        percentageOff: parsedPercent,
+        active: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      setDiscountCode('');
+      setDiscountPercent('');
+      setDiscountFeedback('Discount code created.');
+    } catch (error) {
+      setDiscountFeedback(error instanceof Error ? error.message : 'Unable to create discount code.');
+    } finally {
+      setDiscountStatus('idle');
+    }
+  };
+
+  const executeDeleteDiscountCode = async (discountId: string, code: string) => {
+    setDeletingDiscountId(discountId);
+
+    try {
+      await deleteDoc(doc(db, 'discountCodes', discountId));
+      setDiscountFeedback(`Deleted ${code}.`);
+    } catch (error) {
+      setDiscountFeedback(
+        error instanceof Error ? error.message : 'Unable to delete discount code.'
+      );
+    } finally {
+      setDeletingDiscountId(null);
+    }
+  };
+
+  const handleDeleteDiscountCode = (discountId: string, code: string) => {
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' ? window.confirm(`Delete "${code}"?`) : false;
+
+      if (confirmed) {
+        void executeDeleteDiscountCode(discountId, code);
+      }
+
+      return;
+    }
+
+    Alert.alert('Delete discount code', `Delete "${code}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void executeDeleteDiscountCode(discountId, code);
+        },
+      },
+    ]);
   };
 
   const handleDeleteService = (serviceId: string, name: string) => {
@@ -188,6 +272,64 @@ export default function AdminScreen() {
                 style={[styles.deleteButton, deletingServiceId === service.id && styles.buttonDisabled]}>
                 <Text style={styles.deleteButtonText}>
                   {deletingServiceId === service.id ? 'Deleting...' : 'Delete'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ))}
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <Text style={styles.sectionTitle}>Discount Codes</Text>
+        <Text style={styles.rowText}>Discount Code</Text>
+        <TextInput
+          autoCapitalize="characters"
+          onChangeText={setDiscountCode}
+          placeholder="SPRING15"
+          placeholderTextColor={AppColors.line}
+          style={styles.input}
+          value={discountCode}
+        />
+        <Text style={styles.rowText}>Percentage Off</Text>
+        <TextInput
+          keyboardType="decimal-pad"
+          onChangeText={setDiscountPercent}
+          placeholder="15"
+          placeholderTextColor={AppColors.line}
+          style={styles.input}
+          value={discountPercent}
+        />
+        <Pressable
+          onPress={handleCreateDiscountCode}
+          style={[styles.primaryButton, discountStatus === 'saving' && styles.buttonDisabled]}>
+          <Text style={styles.primaryButtonText}>
+            {discountStatus === 'saving' ? 'Creating...' : 'Create discount code'}
+          </Text>
+        </Pressable>
+        {discountFeedback ? <Text style={styles.feedback}>{discountFeedback}</Text> : null}
+        {discountCodesLoading ? <Text style={styles.rowText}>Loading discount codes...</Text> : null}
+        {discountCodesError ? (
+          <Text style={styles.rowText}>Unable to load discount codes: {discountCodesError}</Text>
+        ) : null}
+        {!discountCodesLoading && !discountCodesError && discountCodes.length === 0 ? (
+          <Text style={styles.rowText}>No discount codes found yet.</Text>
+        ) : null}
+        {discountCodes.map((code) => (
+          <View key={code.id} style={styles.serviceCard}>
+            <View style={styles.serviceHeader}>
+              <Text style={styles.serviceName}>{code.code}</Text>
+              <Text style={styles.rowValue}>{code.active ? 'Active' : 'Inactive'}</Text>
+            </View>
+            <View style={styles.serviceFooter}>
+              <Text style={styles.servicePrice}>{code.percentageOff}% off</Text>
+              <Pressable
+                onPress={() => handleDeleteDiscountCode(code.id, code.code)}
+                style={[
+                  styles.deleteButton,
+                  deletingDiscountId === code.id && styles.buttonDisabled,
+                ]}>
+                <Text style={styles.deleteButtonText}>
+                  {deletingDiscountId === code.id ? 'Deleting...' : 'Delete'}
                 </Text>
               </Pressable>
             </View>

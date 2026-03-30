@@ -107,15 +107,14 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
         }}
       />
-      {isAdmin ? (
-        <Tabs.Screen
-          name="admin"
-          options={{
-            title: '',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.2.fill" color={color} />,
-          }}
-        />
-      ) : null}
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: '',
+          href: isAdmin ? undefined : null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.2.fill" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

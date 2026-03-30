@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
-import { Booking, Order, Service } from '@/lib/types';
+import { Booking, DiscountCode, Order, Service } from '@/lib/types';
 
 type LoadableData<T> = {
   data: T[];
@@ -24,6 +24,15 @@ function isBookingStatus(value: unknown): value is Booking['status'] {
 
 function isOrderStatus(value: unknown): value is Order['status'] {
   return value === 'paid' || value === 'pending' || value === 'refunded';
+}
+
+function normalizeDiscountCode(raw: Record<string, unknown>, id: string): DiscountCode {
+  return {
+    id,
+    code: typeof raw.code === 'string' ? raw.code.toUpperCase() : 'CODE',
+    percentageOff: typeof raw.percentageOff === 'number' ? raw.percentageOff : 0,
+    active: raw.active !== false,
+  };
 }
 
 function normalizeService(raw: Record<string, unknown>, id: string): Service {
@@ -110,6 +119,33 @@ export function useOrders(): LoadableData<Order> {
       collection(db, 'orders'),
       (snapshot) => {
         setData(snapshot.docs.map((docSnapshot) => normalizeOrder(docSnapshot.data(), docSnapshot.id)));
+        setLoading(false);
+        setError(null);
+      },
+      (nextError) => {
+        setError(nextError.message);
+        setLoading(false);
+      }
+    );
+
+    return unsubscribe;
+  }, []);
+
+  return { data, loading, error };
+}
+
+export function useDiscountCodes(): LoadableData<DiscountCode> {
+  const [data, setData] = useState<DiscountCode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, 'discountCodes'),
+      (snapshot) => {
+        setData(
+          snapshot.docs.map((docSnapshot) => normalizeDiscountCode(docSnapshot.data(), docSnapshot.id))
+        );
         setLoading(false);
         setError(null);
       },

@@ -4,7 +4,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { SurfaceCard } from '@/components/surface-card';
 import { availabilitySlots, serviceCatalog } from '@/data/mock-data';
 import { AppColors, AppFonts } from '@/constants/theme';
-import { useServices } from '@/lib/firestore-data';
+import { useDiscountCodes, useServices } from '@/lib/firestore-data';
 import { createStripeCheckoutPlaceholder } from '@/lib/stripe';
 
 const fallbackService = serviceCatalog[0]!;
@@ -12,11 +12,13 @@ const initialSlot = availabilitySlots[0]!;
 
 export default function ScheduleScreen() {
   const { data: firestoreServices, loading: servicesLoading } = useServices();
+  const { data: discountCodes, loading: discountCodesLoading } = useDiscountCodes();
   const availableServices = firestoreServices.length > 0 ? firestoreServices : serviceCatalog;
   const selectedFallbackService = availableServices[0] ?? fallbackService;
   const [selectedServiceId, setSelectedServiceId] = useState(selectedFallbackService.id);
   const [selectedSlotId, setSelectedSlotId] = useState(initialSlot.id);
   const [windowCount, setWindowCount] = useState('12');
+  const [discountCode, setDiscountCode] = useState('');
 
   const selectedService = useMemo(
     () => availableServices.find((service) => service.id === selectedServiceId) ?? selectedFallbackService,
@@ -36,11 +38,28 @@ export default function ScheduleScreen() {
     }
   }, [availableServices, selectedFallbackService.id, selectedServiceId]);
 
+  const quantity = Math.max(0, Number(windowCount) || 0);
+  const normalizedDiscountCode = discountCode.trim().toUpperCase();
+  const appliedDiscount = useMemo(
+    () =>
+      discountCodes.find(
+        (code) => code.active && code.code.trim().toUpperCase() === normalizedDiscountCode
+      ),
+    [discountCodes, normalizedDiscountCode]
+  );
+  const subtotalCents = selectedService.priceCents * quantity;
+  const discountCents = appliedDiscount
+    ? Math.round(subtotalCents * (appliedDiscount.percentageOff / 100))
+    : 0;
+  const totalCents = Math.max(0, subtotalCents - discountCents);
+
+  const formatMoney = (amountCents: number) => `$${(amountCents / 100).toFixed(2)}`;
+
   const handleCheckout = async () => {
     const result = await createStripeCheckoutPlaceholder({
       serviceId: selectedService.id,
       slotId: selectedSlot.id,
-      numberOfWindows: Number(windowCount) || 0,
+      numberOfWindows: quantity,
     });
 
     Alert.alert('Stripe placeholder', result.message);
@@ -55,6 +74,9 @@ export default function ScheduleScreen() {
           and a placeholder Stripe checkout response.
         </Text>
         {servicesLoading ? <Text style={styles.helper}>Loading live services from Firestore...</Text> : null}
+        {discountCodesLoading ? (
+          <Text style={styles.helper}>Loading discount codes from Firestore...</Text>
+        ) : null}
       </View>
 
       <SurfaceCard>
@@ -111,12 +133,40 @@ export default function ScheduleScreen() {
         />
       </SurfaceCard>
 
+      <SurfaceCard>
+        <Text style={styles.sectionTitle}>4. Discount code</Text>
+        <TextInput
+          autoCapitalize="characters"
+          onChangeText={setDiscountCode}
+          placeholder="Enter discount code"
+          placeholderTextColor={AppColors.line}
+          style={styles.input}
+          value={discountCode}
+        />
+        {normalizedDiscountCode ? (
+          <Text style={styles.discountHelper}>
+            {appliedDiscount
+              ? `${appliedDiscount.code} applied for ${appliedDiscount.percentageOff}% off.`
+              : 'Discount code not found.'}
+          </Text>
+        ) : (
+          <Text style={styles.discountHelper}>Enter a code if you have one.</Text>
+        )}
+      </SurfaceCard>
+
       <SurfaceCard style={styles.summaryCard}>
         <Text style={styles.sectionTitle}>Booking summary</Text>
         <Text style={styles.summaryLine}>Service: {selectedService.name}</Text>
         <Text style={styles.summaryLine}>Slot: {selectedSlot.label}</Text>
-        <Text style={styles.summaryLine}>Windows: {windowCount}</Text>
-        <Text style={styles.summaryPrice}>{selectedService.priceLabel}</Text>
+        <Text style={styles.summaryLine}>Quantity: {quantity}</Text>
+        <Text style={styles.summaryLine}>Unit price: {formatMoney(selectedService.priceCents)}</Text>
+        <Text style={styles.summaryLine}>Subtotal: {formatMoney(subtotalCents)}</Text>
+        {appliedDiscount ? (
+          <Text style={styles.summaryLine}>
+            Discount ({appliedDiscount.code}): -{formatMoney(discountCents)}
+          </Text>
+        ) : null}
+        <Text style={styles.summaryPrice}>Total: {formatMoney(totalCents)}</Text>
         <Pressable onPress={handleCheckout} style={styles.checkoutButton}>
           <Text style={styles.checkoutText}>Continue to Stripe placeholder</Text>
         </Pressable>
@@ -197,6 +247,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  discountHelper: {
+    color: AppColors.subtleText,
+    fontFamily: AppFonts.body,
+    fontSize: 13,
+    marginTop: -2,
   },
   summaryCard: {
     gap: 10,

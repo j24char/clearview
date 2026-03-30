@@ -31,6 +31,13 @@ export type Order = {
   serviceName?: string;
 };
 
+export type DiscountCode = {
+  id: string;
+  code: string;
+  percentageOff: number;
+  active: boolean;
+};
+
 export type Testimonial = {
   name: string;
   quote: string;

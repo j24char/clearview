@@ -1,8 +1,20 @@
 import { Redirect } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { addDoc, collection, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { useState } from 'react';
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { SurfaceCard } from '@/components/surface-card';
 import { AppColors, AppFonts } from '@/constants/theme';
+import { db } from '@/lib/firebase';
 import { useOrders, useServices } from '@/lib/firestore-data';
 import { useAuth } from '@/providers/auth-provider';
 
@@ -10,10 +22,94 @@ export default function AdminScreen() {
   const { isAdmin, loading, user, userProfile } = useAuth();
   const { data: services, loading: servicesLoading, error: servicesError } = useServices();
   const { data: orders, loading: ordersLoading, error: ordersError } = useOrders();
+  const [serviceName, setServiceName] = useState('');
+  const [serviceDescription, setServiceDescription] = useState('');
+  const [servicePrice, setServicePrice] = useState('');
+  const [serviceStatus, setServiceStatus] = useState<'idle' | 'saving'>('idle');
+  const [serviceFeedback, setServiceFeedback] = useState('');
+  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
 
   if (!loading && (!user || !isAdmin)) {
     return <Redirect href="/" />;
   }
+
+  const handleCreateService = async () => {
+    const trimmedName = serviceName.trim();
+    const trimmedDescription = serviceDescription.trim();
+    const parsedPrice = Number(servicePrice);
+
+    if (!trimmedName || !trimmedDescription || !servicePrice.trim()) {
+      setServiceFeedback('Enter a name, description, and starting price.');
+      return;
+    }
+
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      setServiceFeedback('Starting price must be a valid non-negative number.');
+      return;
+    }
+
+    setServiceStatus('saving');
+    setServiceFeedback('');
+
+    try {
+      const priceCents = Math.round(parsedPrice * 100);
+
+      await addDoc(collection(db, 'services'), {
+        name: trimmedName,
+        description: trimmedDescription,
+        priceCents,
+        priceLabel: priceCents > 0 ? `Base price $${parsedPrice.toFixed(0)} each` : 'Custom quote',
+        active: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      setServiceName('');
+      setServiceDescription('');
+      setServicePrice('');
+      setServiceFeedback('Service created.');
+    } catch (error) {
+      setServiceFeedback(error instanceof Error ? error.message : 'Unable to create service.');
+    } finally {
+      setServiceStatus('idle');
+    }
+  };
+
+  const executeDeleteService = async (serviceId: string, name: string) => {
+    setDeletingServiceId(serviceId);
+
+    try {
+      await deleteDoc(doc(db, 'services', serviceId));
+      setServiceFeedback(`Deleted ${name}.`);
+    } catch (error) {
+      setServiceFeedback(error instanceof Error ? error.message : 'Unable to delete service.');
+    } finally {
+      setDeletingServiceId(null);
+    }
+  };
+
+  const handleDeleteService = (serviceId: string, name: string) => {
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' ? window.confirm(`Delete "${name}"?`) : false;
+
+      if (confirmed) {
+        void executeDeleteService(serviceId, name);
+      }
+
+      return;
+    }
+
+    Alert.alert('Delete service', `Delete "${name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void executeDeleteService(serviceId, name);
+        },
+      },
+    ]);
+  };
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -21,7 +117,7 @@ export default function AdminScreen() {
         <Text style={styles.title}>Admin Dashboard</Text>
         <Text style={styles.copy}>
           {isAdmin
-            ? 'Your admin shell is active. These cards now read directly from Firestore where available.'
+            ? 'Your admin shell is active. You can now create new services and remove existing ones.'
             : 'Admin tools are visible as placeholders right now. Full write actions should be protected by role-based rules in Firebase.'}
         </Text>
       </View>
@@ -33,6 +129,45 @@ export default function AdminScreen() {
       </SurfaceCard>
 
       <SurfaceCard>
+        <Text style={styles.sectionTitle}>Create Service</Text>
+        <Text style={styles.rowText}>Service Name</Text>
+        <TextInput
+          onChangeText={setServiceName}
+          placeholder="Service name"
+          placeholderTextColor={AppColors.line}
+          style={styles.input}
+          value={serviceName}
+        />
+        <Text style={styles.rowText}>Service Description</Text>
+        <TextInput
+          multiline
+          onChangeText={setServiceDescription}
+          placeholder="Description"
+          placeholderTextColor={AppColors.line}
+          style={[styles.input, styles.textArea]}
+          textAlignVertical="top"
+          value={serviceDescription}
+        />
+        <Text style={styles.rowText}>Price (in dollars)</Text>
+        <TextInput
+          keyboardType="decimal-pad"
+          onChangeText={setServicePrice}
+          placeholder="Starting price in dollars"
+          placeholderTextColor={AppColors.line}
+          style={styles.input}
+          value={servicePrice}
+        />
+        <Pressable
+          onPress={handleCreateService}
+          style={[styles.primaryButton, serviceStatus === 'saving' && styles.buttonDisabled]}>
+          <Text style={styles.primaryButtonText}>
+            {serviceStatus === 'saving' ? 'Creating...' : 'Create service'}
+          </Text>
+        </Pressable>
+        {serviceFeedback ? <Text style={styles.feedback}>{serviceFeedback}</Text> : null}
+      </SurfaceCard>
+
+      <SurfaceCard>
         <Text style={styles.sectionTitle}>Services</Text>
         {servicesLoading ? <Text style={styles.rowText}>Loading services...</Text> : null}
         {servicesError ? <Text style={styles.rowText}>Unable to load services: {servicesError}</Text> : null}
@@ -40,9 +175,22 @@ export default function AdminScreen() {
           <Text style={styles.rowText}>No Firestore services found yet.</Text>
         ) : null}
         {services.map((service) => (
-          <View key={service.id} style={styles.row}>
-            <Text style={styles.rowLabel}>{service.name}</Text>
-            <Text style={styles.rowValue}>{service.active ? 'Active' : 'Inactive'}</Text>
+          <View key={service.id} style={styles.serviceCard}>
+            <View style={styles.serviceHeader}>
+              <Text style={styles.serviceName}>{service.name}</Text>
+              <Text style={styles.rowValue}>{service.active ? 'Active' : 'Inactive'}</Text>
+            </View>
+            <Text style={styles.serviceCopy}>{service.description}</Text>
+            <View style={styles.serviceFooter}>
+              <Text style={styles.servicePrice}>{service.priceLabel}</Text>
+              <Pressable
+                onPress={() => handleDeleteService(service.id, service.name)}
+                style={[styles.deleteButton, deletingServiceId === service.id && styles.buttonDisabled]}>
+                <Text style={styles.deleteButtonText}>
+                  {deletingServiceId === service.id ? 'Deleting...' : 'Delete'}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         ))}
       </SurfaceCard>
@@ -69,9 +217,9 @@ export default function AdminScreen() {
 
       <SurfaceCard>
         <Text style={styles.sectionTitle}>Next backend tasks</Text>
+        <Text style={styles.todo}>Add edit controls for service pricing and active/inactive status.</Text>
         <Text style={styles.todo}>Write bookings into Firestore when the schedule form is submitted.</Text>
         <Text style={styles.todo}>Add Firebase Functions for Stripe checkout and webhook handling.</Text>
-        <Text style={styles.todo}>Gate this route from non-admin users once roles are stored server-side.</Text>
       </SurfaceCard>
     </ScrollView>
   );
@@ -106,6 +254,42 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginBottom: 12,
   },
+  input: {
+    backgroundColor: AppColors.cardAlt,
+    borderColor: AppColors.line,
+    borderRadius: 14,
+    borderWidth: 1,
+    color: AppColors.ink,
+    fontFamily: AppFonts.body,
+    fontSize: 15,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  textArea: {
+    minHeight: 96,
+  },
+  primaryButton: {
+    alignItems: 'center',
+    backgroundColor: AppColors.accentDeep,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+  primaryButtonText: {
+    color: AppColors.card,
+    fontFamily: AppFonts.body,
+    fontSize: 15,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  feedback: {
+    color: AppColors.subtleText,
+    fontFamily: AppFonts.body,
+    fontSize: 14,
+    marginTop: 10,
+  },
   row: {
     borderTopColor: AppColors.line,
     borderTopWidth: 1,
@@ -131,6 +315,51 @@ const styles = StyleSheet.create({
     fontFamily: AppFonts.mono,
     fontSize: 12,
     textTransform: 'uppercase',
+  },
+  serviceCard: {
+    borderTopColor: AppColors.line,
+    borderTopWidth: 1,
+    gap: 10,
+    paddingVertical: 14,
+  },
+  serviceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  serviceName: {
+    color: AppColors.ink,
+    flex: 1,
+    fontFamily: AppFonts.display,
+    fontSize: 17,
+    paddingRight: 12,
+  },
+  serviceCopy: {
+    color: AppColors.subtleText,
+    fontFamily: AppFonts.body,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  serviceFooter: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  servicePrice: {
+    color: AppColors.ink,
+    fontFamily: AppFonts.body,
+    fontSize: 14,
+  },
+  deleteButton: {
+    borderColor: '#B24A3A',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  deleteButtonText: {
+    color: '#B24A3A',
+    fontFamily: AppFonts.body,
+    fontSize: 14,
   },
   todo: {
     color: AppColors.subtleText,

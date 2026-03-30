@@ -70,4 +70,8 @@ export const testimonials: Testimonial[] = [
     name: 'Casey L.',
     quote: 'I appreciated getting a clear time window and transparent pricing before checkout.',
   },
+  {
+    name: 'Taylor S.',
+    quote: 'It was great having this taken care of simply by booking a time convenient for me.',
+  }
 ];

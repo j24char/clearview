@@ -12,7 +12,7 @@ export default function ServicesScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={styles.title}>Service Catalog</Text>
-        <Text style={styles.copy}>These cards now read from your Firestore `services` collection.</Text>
+        <Text style={styles.copy}>These are the services we currently offer.</Text>
       </View>
 
       {loading ? <Text style={styles.stateText}>Loading services...</Text> : null}
@@ -30,13 +30,13 @@ export default function ServicesScreen() {
         <ServiceCard key={service.id} service={service} showFullDescription />
       ))}
 
-      <SurfaceCard>
+      {/* <SurfaceCard>
         <Text style={styles.noteTitle}>Admin workflow</Text>
         <Text style={styles.noteCopy}>
           The admin tab includes placeholders for toggling active services, pricing changes, and
           future image uploads.
         </Text>
-      </SurfaceCard>
+      </SurfaceCard> */}
     </ScrollView>
   );
 }

@@ -1,6 +1,7 @@
 import { Link } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ImageBackground,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
@@ -57,22 +58,28 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <SurfaceCard style={styles.heroCard}>
-        <Text style={styles.eyebrow}>CLEARVIEW WINDOW WASHING</Text>
-        <Text style={styles.heroTitle}>Bright windows. Simple booking. Local service you can trust.</Text>
-        <Text style={styles.heroBody}>
-          Clearview helps homeowners book residential window washing in a few taps, with clear
-          pricing, reliable scheduling, and a payment flow ready for Stripe when you are.
-        </Text>
-        <View style={styles.heroActions}>
-          <Link href="/schedule" style={styles.primaryAction}>
-            Book a Service
-          </Link>
-          <Link href="/signin" style={styles.secondaryAction}>
-            Sign In / Sign Up
-          </Link>
+      <ImageBackground
+        imageStyle={styles.heroImage}
+        resizeMode="cover"
+        source={require('@/assets/images/window2.png')}
+        style={styles.heroShell}>
+        <View style={styles.heroOverlay}>
+          <Text style={styles.eyebrow}>CLEARVIEW WINDOW WASHING</Text>
+          <Text style={styles.heroTitle}>Bright windows. Simple booking. Local service you can trust.</Text>
+          <Text style={styles.heroBody}>
+            Clearview helps homeowners book residential window washing in a few taps, with clear
+            pricing, reliable scheduling, and a payment flow ready for Stripe when you are.
+          </Text>
+          <View style={styles.heroActions}>
+            <Link href="/schedule" style={styles.primaryAction}>
+              Book a Service
+            </Link>
+            <Link href="/signin" style={styles.secondaryAction}>
+              Sign In / Sign Up
+            </Link>
+          </View>
         </View>
-      </SurfaceCard>
+      </ImageBackground>
 
       {/* <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Services</Text>
@@ -140,24 +147,36 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 16,
   },
-  heroCard: {
-    backgroundColor: AppColors.hero,
+  heroShell: {
+    borderRadius: 24,
+    minHeight: 420,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  heroImage: {
+    borderRadius: 24,
+  },
+  heroOverlay: {
+    backgroundColor: 'rgba(12, 22, 28, 0.5)',
     gap: 14,
+    minHeight: 420,
+    justifyContent: 'center',
+    padding: 22,
   },
   eyebrow: {
-    color: AppColors.accentDeep,
+    color: '#EAF6F3',
     fontFamily: AppFonts.mono,
     fontSize: 12,
     letterSpacing: 1.3,
   },
   heroTitle: {
-    color: AppColors.ink,
+    color: '#FFFFFF',
     fontFamily: AppFonts.display,
     fontSize: 34,
     lineHeight: 40,
   },
   heroBody: {
-    color: AppColors.subtleText,
+    color: '#E5F1EE',
     fontFamily: AppFonts.body,
     fontSize: 16,
     lineHeight: 24,
@@ -168,18 +187,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   primaryAction: {
-    backgroundColor: AppColors.ink,
+    backgroundColor: '#FFFFFF',
     borderRadius: 999,
-    color: AppColors.background,
+    color: AppColors.ink,
     overflow: 'hidden',
     paddingHorizontal: 18,
     paddingVertical: 12,
   },
   secondaryAction: {
-    borderColor: AppColors.ink,
+    borderColor: '#FFFFFF',
     borderRadius: 999,
     borderWidth: 1,
-    color: AppColors.ink,
+    color: '#FFFFFF',
     overflow: 'hidden',
     paddingHorizontal: 18,
     paddingVertical: 12,

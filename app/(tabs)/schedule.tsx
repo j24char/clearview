@@ -1,3 +1,5 @@
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -5,12 +7,16 @@ import { SurfaceCard } from '@/components/surface-card';
 import { availabilitySlots, serviceCatalog } from '@/data/mock-data';
 import { AppColors, AppFonts } from '@/constants/theme';
 import { useDiscountCodes, useServices } from '@/lib/firestore-data';
+import { db } from '@/lib/firebase';
 import { createStripeCheckoutPlaceholder } from '@/lib/stripe';
+import { useAuth } from '@/providers/auth-provider';
 
 const fallbackService = serviceCatalog[0]!;
 const initialSlot = availabilitySlots[0]!;
 
 export default function ScheduleScreen() {
+  const router = useRouter();
+  const { user, userProfile } = useAuth();
   const { data: firestoreServices, loading: servicesLoading } = useServices();
   const { data: discountCodes, loading: discountCodesLoading } = useDiscountCodes();
   const availableServices = firestoreServices.length > 0 ? firestoreServices : serviceCatalog;
@@ -19,6 +25,7 @@ export default function ScheduleScreen() {
   const [selectedSlotId, setSelectedSlotId] = useState(initialSlot.id);
   const [windowCount, setWindowCount] = useState('12');
   const [discountCode, setDiscountCode] = useState('');
+  const [bookingStatus, setBookingStatus] = useState<'idle' | 'saving'>('idle');
 
   const selectedService = useMemo(
     () => availableServices.find((service) => service.id === selectedServiceId) ?? selectedFallbackService,
@@ -56,13 +63,66 @@ export default function ScheduleScreen() {
   const formatMoney = (amountCents: number) => `$${(amountCents / 100).toFixed(2)}`;
 
   const handleCheckout = async () => {
-    const result = await createStripeCheckoutPlaceholder({
-      serviceId: selectedService.id,
-      slotId: selectedSlot.id,
-      numberOfWindows: quantity,
-    });
+    if (!user) {
+      Alert.alert('Sign in required', 'Please sign in before booking a service.', [
+        {
+          text: 'Go to sign in',
+          onPress: () => {
+            router.push('/signin');
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+      return;
+    }
 
-    Alert.alert('Stripe placeholder', result.message);
+    if (quantity <= 0) {
+      Alert.alert('Quantity required', 'Enter a quantity greater than 0 before continuing.');
+      return;
+    }
+
+    setBookingStatus('saving');
+
+    try {
+      await addDoc(collection(db, 'bookings'), {
+        userId: user.uid,
+        customerName: userProfile?.name?.trim() || userProfile?.email || user.email || 'Clearview Customer',
+        serviceId: selectedService.id,
+        serviceName: selectedService.name,
+        numberOfWindows: quantity,
+        quantity,
+        status: 'pending',
+        slotId: selectedSlot.id,
+        slotLabel: selectedSlot.label,
+        slotWindow: selectedSlot.window,
+        unitPriceCents: selectedService.priceCents,
+        subtotalAmount: subtotalCents,
+        totalAmount: totalCents,
+        discountAmount: discountCents,
+        discountCode: appliedDiscount?.code ?? null,
+        discountPercentageOff: appliedDiscount?.percentageOff ?? 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      const result = await createStripeCheckoutPlaceholder({
+        serviceId: selectedService.id,
+        slotId: selectedSlot.id,
+        numberOfWindows: quantity,
+      });
+
+      Alert.alert(
+        'Booking created',
+        `Your booking was saved to Firestore with a total of ${formatMoney(totalCents)}. ${result.message}`
+      );
+    } catch (error) {
+      Alert.alert(
+        'Booking failed',
+        error instanceof Error ? error.message : 'Unable to save your booking right now.'
+      );
+    } finally {
+      setBookingStatus('idle');
+    }
   };
 
   return (
@@ -168,7 +228,9 @@ export default function ScheduleScreen() {
         ) : null}
         <Text style={styles.summaryPrice}>Total: {formatMoney(totalCents)}</Text>
         <Pressable onPress={handleCheckout} style={styles.checkoutButton}>
-          <Text style={styles.checkoutText}>Continue to Stripe placeholder</Text>
+          <Text style={styles.checkoutText}>
+            {bookingStatus === 'saving' ? 'Saving booking...' : 'Save booking and continue'}
+          </Text>
         </Pressable>
       </SurfaceCard>
     </ScrollView>

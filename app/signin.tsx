@@ -30,7 +30,7 @@ export default function SignInScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <SurfaceCard>
         <Text style={styles.title}>Sign in</Text>
-        <Text style={styles.copy}>Firebase Auth is connected here with email and password.</Text>
+        {/* <Text style={styles.copy}>Sign in here with email and password.</Text> */}
         <TextInput
           autoCapitalize="none"
           keyboardType="email-address"

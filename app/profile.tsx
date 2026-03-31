@@ -36,7 +36,7 @@ export default function ProfileScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <SurfaceCard>
         <Text style={styles.title}>Profile</Text>
-        <Text style={styles.copy}>Customer data is sourced from Firebase Auth and Firestore.</Text>
+        {/* <Text style={styles.copy}>Customer data is sourced from Firebase Auth and Firestore.</Text> */}
         <TextInput
           onChangeText={setName}
           placeholder="Full name"

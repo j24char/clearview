@@ -1,11 +1,12 @@
 import { Redirect } from 'expo-router';
-import { addDoc, collection, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import {
   Alert,
   Platform,
   Pressable,
   ScrollView,
+  Switch,
   StyleSheet,
   Text,
   TextInput,
@@ -15,12 +16,13 @@ import {
 import { SurfaceCard } from '@/components/surface-card';
 import { AppColors, AppFonts } from '@/constants/theme';
 import { db } from '@/lib/firebase';
-import { useDiscountCodes, useOrders, useServices } from '@/lib/firestore-data';
+import { useBookings, useDiscountCodes, useOrders, useServices } from '@/lib/firestore-data';
 import { useAuth } from '@/providers/auth-provider';
 
 export default function AdminScreen() {
   const { isAdmin, loading, user, userProfile } = useAuth();
-  const { data: services, loading: servicesLoading, error: servicesError } = useServices();
+  const { data: services, loading: servicesLoading, error: servicesError } = useServices(true);
+  const { data: bookings, loading: bookingsLoading, error: bookingsError } = useBookings();
   const {
     data: discountCodes,
     loading: discountCodesLoading,
@@ -33,11 +35,13 @@ export default function AdminScreen() {
   const [serviceStatus, setServiceStatus] = useState<'idle' | 'saving'>('idle');
   const [serviceFeedback, setServiceFeedback] = useState('');
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
+  const [updatingServiceId, setUpdatingServiceId] = useState<string | null>(null);
   const [discountCode, setDiscountCode] = useState('');
   const [discountPercent, setDiscountPercent] = useState('');
   const [discountStatus, setDiscountStatus] = useState<'idle' | 'saving'>('idle');
   const [discountFeedback, setDiscountFeedback] = useState('');
   const [deletingDiscountId, setDeletingDiscountId] = useState<string | null>(null);
+  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
 
   if (!loading && (!user || !isAdmin)) {
     return <Redirect href="/" />;
@@ -95,6 +99,26 @@ export default function AdminScreen() {
       setServiceFeedback(error instanceof Error ? error.message : 'Unable to delete service.');
     } finally {
       setDeletingServiceId(null);
+    }
+  };
+
+  const handleToggleServiceActive = async (
+    serviceId: string,
+    serviceName: string,
+    nextActive: boolean
+  ) => {
+    setUpdatingServiceId(serviceId);
+
+    try {
+      await updateDoc(doc(db, 'services', serviceId), {
+        active: nextActive,
+        updatedAt: serverTimestamp(),
+      });
+      setServiceFeedback(`${serviceName} is now ${nextActive ? 'active' : 'inactive'}.`);
+    } catch (error) {
+      setServiceFeedback(error instanceof Error ? error.message : 'Unable to update service.');
+    } finally {
+      setUpdatingServiceId(null);
     }
   };
 
@@ -195,6 +219,26 @@ export default function AdminScreen() {
     ]);
   };
 
+  const handleApproveBooking = async (bookingId: string, serviceName: string) => {
+    setUpdatingBookingId(bookingId);
+
+    try {
+      await updateDoc(doc(db, 'bookings', bookingId), {
+        status: 'confirmed',
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      setServiceFeedback(
+        error instanceof Error ? error.message : `Unable to approve ${serviceName} booking.`
+      );
+    } finally {
+      setUpdatingBookingId(null);
+    }
+  };
+
+  const formatMoney = (amountCents?: number) =>
+    typeof amountCents === 'number' ? `$${(amountCents / 100).toFixed(2)}` : '';
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -205,12 +249,6 @@ export default function AdminScreen() {
             : 'Admin tools are visible as placeholders right now. Full write actions should be protected by role-based rules in Firebase.'}
         </Text>
       </View>
-
-      <SurfaceCard>
-        <Text style={styles.sectionTitle}>Access</Text>
-        <Text style={styles.rowText}>Signed in as: {userProfile?.email ?? 'Guest user'}</Text>
-        <Text style={styles.rowText}>Role: {isAdmin ? 'admin' : 'customer'}</Text>
-      </SurfaceCard>
 
       <SurfaceCard>
         <Text style={styles.sectionTitle}>Create Service</Text>
@@ -228,7 +266,8 @@ export default function AdminScreen() {
           onChangeText={setServiceDescription}
           placeholder="Description"
           placeholderTextColor={AppColors.line}
-          style={[styles.input, styles.textArea]}
+          //style={[styles.input, styles.textArea]}
+          style={styles.input}
           textAlignVertical="top"
           value={serviceDescription}
         />
@@ -267,13 +306,73 @@ export default function AdminScreen() {
             <Text style={styles.serviceCopy}>{service.description}</Text>
             <View style={styles.serviceFooter}>
               <Text style={styles.servicePrice}>{service.priceLabel}</Text>
-              <Pressable
-                onPress={() => handleDeleteService(service.id, service.name)}
-                style={[styles.deleteButton, deletingServiceId === service.id && styles.buttonDisabled]}>
-                <Text style={styles.deleteButtonText}>
-                  {deletingServiceId === service.id ? 'Deleting...' : 'Delete'}
-                </Text>
-              </Pressable>
+              <View style={styles.serviceActions}>
+                <View style={styles.switchGroup}>
+                  <Text style={styles.switchLabel}>{service.active ? 'Active' : 'Inactive'}</Text>
+                  <Switch
+                    disabled={updatingServiceId === service.id}
+                    onValueChange={(nextValue) =>
+                      void handleToggleServiceActive(service.id, service.name, nextValue)
+                    }
+                    thumbColor={service.active ? AppColors.card : '#F1F1F1'}
+                    trackColor={{ false: AppColors.line, true: AppColors.accentDeep }}
+                    value={service.active}
+                  />
+                </View>
+                <Pressable
+                  onPress={() => handleDeleteService(service.id, service.name)}
+                  style={[
+                    styles.deleteButton,
+                    deletingServiceId === service.id && styles.buttonDisabled,
+                  ]}>
+                  <Text style={styles.deleteButtonText}>
+                    {deletingServiceId === service.id ? 'Deleting...' : 'Delete'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        ))}
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <Text style={styles.sectionTitle}>Bookings</Text>
+        {bookingsLoading ? <Text style={styles.rowText}>Loading bookings...</Text> : null}
+        {bookingsError ? <Text style={styles.rowText}>Unable to load bookings: {bookingsError}</Text> : null}
+        {!bookingsLoading && !bookingsError && bookings.length === 0 ? (
+          <Text style={styles.rowText}>No Firestore bookings found yet.</Text>
+        ) : null}
+        {bookings.map((booking) => (
+          <View key={booking.id} style={styles.serviceCard}>
+            <View style={styles.serviceHeader}>
+              <Text style={styles.serviceName}>{booking.serviceName}</Text>
+              <Text style={styles.rowValue}>{booking.status}</Text>
+            </View>
+            <Text style={styles.serviceCopy}>
+              {booking.customerName ?? 'Unknown customer'}
+              {booking.slotLabel ? ` | ${booking.slotLabel}` : ''}
+              {booking.slotWindow ? ` | ${booking.slotWindow}` : ''}
+            </Text>
+            <View style={styles.serviceFooter}>
+              <Text style={styles.servicePrice}>
+                Qty {booking.quantity ?? booking.numberOfWindows ?? 0}
+                {booking.totalAmount ? ` | ${formatMoney(booking.totalAmount)}` : ''}
+                {booking.discountCode ? ` | ${booking.discountCode}` : ''}
+              </Text>
+              {booking.status === 'pending' ? (
+                <Pressable
+                  onPress={() => void handleApproveBooking(booking.id, booking.serviceName)}
+                  style={[
+                    styles.primarySmallButton,
+                    updatingBookingId === booking.id && styles.buttonDisabled,
+                  ]}>
+                  <Text style={styles.primarySmallButtonText}>
+                    {updatingBookingId === booking.id ? 'Approving...' : 'Approve'}
+                  </Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.approvedText}>Approved</Text>
+              )}
             </View>
           </View>
         ))}
@@ -485,11 +584,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
   },
   servicePrice: {
     color: AppColors.ink,
     fontFamily: AppFonts.body,
     fontSize: 14,
+  },
+  serviceActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  switchGroup: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  switchLabel: {
+    color: AppColors.subtleText,
+    fontFamily: AppFonts.body,
+    fontSize: 13,
   },
   deleteButton: {
     borderColor: '#B24A3A',
@@ -502,6 +617,22 @@ const styles = StyleSheet.create({
     color: '#B24A3A',
     fontFamily: AppFonts.body,
     fontSize: 14,
+  },
+  primarySmallButton: {
+    backgroundColor: AppColors.accentDeep,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  primarySmallButtonText: {
+    color: AppColors.card,
+    fontFamily: AppFonts.body,
+    fontSize: 14,
+  },
+  approvedText: {
+    color: AppColors.accentDeep,
+    fontFamily: AppFonts.body,
+    fontSize: 13,
   },
   todo: {
     color: AppColors.subtleText,

@@ -57,12 +57,21 @@ function normalizeService(raw: Record<string, unknown>, id: string): Service {
 function normalizeBooking(raw: Record<string, unknown>, id: string): Booking {
   return {
     id,
+    userId: typeof raw.userId === 'string' ? raw.userId : undefined,
+    customerName: typeof raw.customerName === 'string' ? raw.customerName : undefined,
+    serviceId: typeof raw.serviceId === 'string' ? raw.serviceId : undefined,
     serviceName: typeof raw.serviceName === 'string' ? raw.serviceName : 'Window Cleaning',
     status: isBookingStatus(raw.status) ? raw.status : 'pending',
     scheduledDate: typeof raw.scheduledDate === 'string' ? raw.scheduledDate : undefined,
     slotLabel: typeof raw.slotLabel === 'string' ? raw.slotLabel : undefined,
     slotWindow: typeof raw.slotWindow === 'string' ? raw.slotWindow : undefined,
     numberOfWindows: typeof raw.numberOfWindows === 'number' ? raw.numberOfWindows : undefined,
+    quantity: typeof raw.quantity === 'number' ? raw.quantity : undefined,
+    totalAmount: typeof raw.totalAmount === 'number' ? raw.totalAmount : undefined,
+    discountCode:
+      typeof raw.discountCode === 'string' || raw.discountCode === null
+        ? (raw.discountCode as string | null)
+        : undefined,
   };
 }
 
@@ -84,7 +93,7 @@ function normalizeOrder(raw: Record<string, unknown>, id: string): Order {
   };
 }
 
-export function useServices(): LoadableData<Service> {
+export function useServices(includeInactive = false): LoadableData<Service> {
   const [data, setData] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +102,10 @@ export function useServices(): LoadableData<Service> {
     const unsubscribe = onSnapshot(
       collection(db, 'services'),
       (snapshot) => {
-        setData(snapshot.docs.map((docSnapshot) => normalizeService(docSnapshot.data(), docSnapshot.id)));
+        const services = snapshot.docs.map((docSnapshot) =>
+          normalizeService(docSnapshot.data(), docSnapshot.id)
+        );
+        setData(includeInactive ? services : services.filter((service) => service.active));
         setLoading(false);
         setError(null);
       },
@@ -104,7 +116,7 @@ export function useServices(): LoadableData<Service> {
     );
 
     return unsubscribe;
-  }, []);
+  }, [includeInactive]);
 
   return { data, loading, error };
 }
@@ -192,6 +204,31 @@ export function useUserBookings(userId?: string | null): LoadableData<Booking> {
 
     return unsubscribe;
   }, [userId]);
+
+  return { data, loading, error };
+}
+
+export function useBookings(): LoadableData<Booking> {
+  const [data, setData] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, 'bookings'),
+      (snapshot) => {
+        setData(snapshot.docs.map((docSnapshot) => normalizeBooking(docSnapshot.data(), docSnapshot.id)));
+        setLoading(false);
+        setError(null);
+      },
+      (nextError) => {
+        setError(nextError.message);
+        setLoading(false);
+      }
+    );
+
+    return unsubscribe;
+  }, []);
 
   return { data, loading, error };
 }

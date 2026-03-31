@@ -15,12 +15,18 @@ export type AvailabilitySlot = {
 
 export type Booking = {
   id: string;
+  userId?: string;
+  customerName?: string;
+  serviceId?: string;
   serviceName: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   scheduledDate?: string;
   slotLabel?: string;
   slotWindow?: string;
   numberOfWindows?: number;
+  quantity?: number;
+  totalAmount?: number;
+  discountCode?: string | null;
 };
 
 export type Order = {

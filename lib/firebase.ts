@@ -1,6 +1,7 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -16,3 +17,15 @@ const firebaseApp: FirebaseApp = getApps().length ? getApp() : initializeApp(fir
 
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
+export const functions = getFunctions(
+  firebaseApp,
+  process.env.EXPO_PUBLIC_FIREBASE_FUNCTIONS_REGION ?? 'us-central1'
+);
+
+if (process.env.EXPO_PUBLIC_USE_FUNCTIONS_EMULATOR === 'true') {
+  connectFunctionsEmulator(
+    functions,
+    process.env.EXPO_PUBLIC_FUNCTIONS_EMULATOR_HOST ?? '127.0.0.1',
+    Number(process.env.EXPO_PUBLIC_FUNCTIONS_EMULATOR_PORT ?? '5001')
+  );
+}

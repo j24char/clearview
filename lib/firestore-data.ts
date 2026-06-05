@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
-import { Booking, DiscountCode, Order, Service } from '@/lib/types';
+import { AvailabilitySlot, Booking, DiscountCode, Order, Service } from '@/lib/types';
 
 type LoadableData<T> = {
   data: T[];
@@ -32,6 +32,14 @@ function normalizeDiscountCode(raw: Record<string, unknown>, id: string): Discou
     code: typeof raw.code === 'string' ? raw.code.toUpperCase() : 'CODE',
     percentageOff: typeof raw.percentageOff === 'number' ? raw.percentageOff : 0,
     active: raw.active !== false,
+  };
+}
+
+function normalizeAvailabilitySlot(raw: Record<string, unknown>, id: string): AvailabilitySlot {
+  return {
+    id,
+    label: typeof raw.label === 'string' ? raw.label : 'New slot',
+    window: typeof raw.window === 'string' ? raw.window : 'Time window TBD',
   };
 }
 
@@ -157,6 +165,35 @@ export function useDiscountCodes(): LoadableData<DiscountCode> {
       (snapshot) => {
         setData(
           snapshot.docs.map((docSnapshot) => normalizeDiscountCode(docSnapshot.data(), docSnapshot.id))
+        );
+        setLoading(false);
+        setError(null);
+      },
+      (nextError) => {
+        setError(nextError.message);
+        setLoading(false);
+      }
+    );
+
+    return unsubscribe;
+  }, []);
+
+  return { data, loading, error };
+}
+
+export function useAvailabilitySlots(): LoadableData<AvailabilitySlot> {
+  const [data, setData] = useState<AvailabilitySlot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, 'availabilitySlots'),
+      (snapshot) => {
+        setData(
+          snapshot.docs.map((docSnapshot) =>
+            normalizeAvailabilitySlot(docSnapshot.data(), docSnapshot.id)
+          )
         );
         setLoading(false);
         setError(null);

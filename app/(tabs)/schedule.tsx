@@ -1,14 +1,24 @@
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { SurfaceCard } from '@/components/surface-card';
 import { availabilitySlots, serviceCatalog } from '@/data/mock-data';
 import { AppColors, AppFonts } from '@/constants/theme';
-import { useDiscountCodes, useServices } from '@/lib/firestore-data';
+import { useAvailabilitySlots, useDiscountCodes, useServices } from '@/lib/firestore-data';
 import { db } from '@/lib/firebase';
-import { createStripeCheckoutPlaceholder } from '@/lib/stripe';
+import { createStripeCheckoutSession } from '@/lib/stripe';
 import { useAuth } from '@/providers/auth-provider';
 
 const fallbackService = serviceCatalog[0]!;
@@ -18,11 +28,14 @@ export default function ScheduleScreen() {
   const router = useRouter();
   const { user, userProfile } = useAuth();
   const { data: firestoreServices, loading: servicesLoading } = useServices();
+  const { data: firestoreSlots, loading: slotsLoading } = useAvailabilitySlots();
   const { data: discountCodes, loading: discountCodesLoading } = useDiscountCodes();
   const availableServices = firestoreServices.length > 0 ? firestoreServices : serviceCatalog;
+  const availableSlots = firestoreSlots.length > 0 ? firestoreSlots : availabilitySlots;
   const selectedFallbackService = availableServices[0] ?? fallbackService;
+  const selectedFallbackSlot = availableSlots[0] ?? initialSlot;
   const [selectedServiceId, setSelectedServiceId] = useState(selectedFallbackService.id);
-  const [selectedSlotId, setSelectedSlotId] = useState(initialSlot.id);
+  const [selectedSlotId, setSelectedSlotId] = useState(selectedFallbackSlot.id);
   const [windowCount, setWindowCount] = useState('12');
   const [discountCode, setDiscountCode] = useState('');
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'saving'>('idle');
@@ -33,8 +46,8 @@ export default function ScheduleScreen() {
   );
 
   const selectedSlot = useMemo(
-    () => availabilitySlots.find((slot) => slot.id === selectedSlotId) ?? initialSlot,
-    [selectedSlotId]
+    () => availableSlots.find((slot) => slot.id === selectedSlotId) ?? selectedFallbackSlot,
+    [availableSlots, selectedFallbackSlot, selectedSlotId]
   );
 
   useEffect(() => {
@@ -44,6 +57,14 @@ export default function ScheduleScreen() {
       setSelectedServiceId(selectedFallbackService.id);
     }
   }, [availableServices, selectedFallbackService.id, selectedServiceId]);
+
+  useEffect(() => {
+    const hasSelectedSlot = availableSlots.some((slot) => slot.id === selectedSlotId);
+
+    if (!hasSelectedSlot) {
+      setSelectedSlotId(selectedFallbackSlot.id);
+    }
+  }, [availableSlots, selectedFallbackSlot.id, selectedSlotId]);
 
   const quantity = Math.max(0, Number(windowCount) || 0);
   const normalizedDiscountCode = discountCode.trim().toUpperCase();
@@ -84,7 +105,7 @@ export default function ScheduleScreen() {
     setBookingStatus('saving');
 
     try {
-      await addDoc(collection(db, 'bookings'), {
+      const bookingRef = await addDoc(collection(db, 'bookings'), {
         userId: user.uid,
         customerName: userProfile?.name?.trim() || userProfile?.email || user.email || 'Clearview Customer',
         serviceId: selectedService.id,
@@ -105,16 +126,38 @@ export default function ScheduleScreen() {
         updatedAt: serverTimestamp(),
       });
 
-      const result = await createStripeCheckoutPlaceholder({
+      const successUrl =
+        Platform.OS === 'web'
+          ? `${window.location.origin}/profile?checkout=success`
+          : Linking.createURL('/profile?checkout=success');
+      const cancelUrl =
+        Platform.OS === 'web'
+          ? `${window.location.origin}/schedule?checkout=cancelled`
+          : Linking.createURL('/schedule?checkout=cancelled');
+
+      const result = await createStripeCheckoutSession({
+        bookingId: bookingRef.id,
         serviceId: selectedService.id,
+        serviceName: selectedService.name,
         slotId: selectedSlot.id,
         numberOfWindows: quantity,
+        unitPriceCents: selectedService.priceCents,
+        totalAmount: totalCents,
+        customerEmail: userProfile?.email || user.email || undefined,
+        customerName: userProfile?.name || undefined,
+        successUrl,
+        cancelUrl,
       });
 
-      Alert.alert(
-        'Booking created',
-        `Your booking was saved to Firestore with a total of ${formatMoney(totalCents)}. ${result.message}`
-      );
+      if (!result.ok || !result.url) {
+        Alert.alert(
+          'Booking saved',
+          `Your booking was saved to Firestore with a total of ${formatMoney(totalCents)}, but Stripe checkout could not start. ${result.message}`
+        );
+        return;
+      }
+
+      await Linking.openURL(result.url);
     } catch (error) {
       Alert.alert(
         'Booking failed',
@@ -134,6 +177,7 @@ export default function ScheduleScreen() {
           and a placeholder Stripe checkout response.
         </Text>
         {servicesLoading ? <Text style={styles.helper}>Loading live services from Firestore...</Text> : null}
+        {slotsLoading ? <Text style={styles.helper}>Loading live time slots from Firestore...</Text> : null}
         {discountCodesLoading ? (
           <Text style={styles.helper}>Loading discount codes from Firestore...</Text>
         ) : null}
@@ -163,7 +207,7 @@ export default function ScheduleScreen() {
       <SurfaceCard>
         <Text style={styles.sectionTitle}>2. Select a time slot</Text>
         <View style={styles.choiceList}>
-          {availabilitySlots.map((slot) => {
+          {availableSlots.map((slot) => {
             const active = slot.id === selectedSlotId;
 
             return (
@@ -229,7 +273,7 @@ export default function ScheduleScreen() {
         <Text style={styles.summaryPrice}>Total: {formatMoney(totalCents)}</Text>
         <Pressable onPress={handleCheckout} style={styles.checkoutButton}>
           <Text style={styles.checkoutText}>
-            {bookingStatus === 'saving' ? 'Saving booking...' : 'Save booking and continue'}
+            {bookingStatus === 'saving' ? 'Saving booking...' : 'Save booking and continue to payment'}
           </Text>
         </Pressable>
       </SurfaceCard>

@@ -6,8 +6,8 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  Switch,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -16,12 +16,23 @@ import {
 import { SurfaceCard } from '@/components/surface-card';
 import { AppColors, AppFonts } from '@/constants/theme';
 import { db } from '@/lib/firebase';
-import { useBookings, useDiscountCodes, useOrders, useServices } from '@/lib/firestore-data';
+import {
+  useAvailabilitySlots,
+  useBookings,
+  useDiscountCodes,
+  useOrders,
+  useServices,
+} from '@/lib/firestore-data';
 import { useAuth } from '@/providers/auth-provider';
 
 export default function AdminScreen() {
   const { isAdmin, loading, user, userProfile } = useAuth();
   const { data: services, loading: servicesLoading, error: servicesError } = useServices(true);
+  const {
+    data: availabilitySlots,
+    loading: availabilityLoading,
+    error: availabilityError,
+  } = useAvailabilitySlots();
   const { data: bookings, loading: bookingsLoading, error: bookingsError } = useBookings();
   const {
     data: discountCodes,
@@ -36,6 +47,11 @@ export default function AdminScreen() {
   const [serviceFeedback, setServiceFeedback] = useState('');
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
   const [updatingServiceId, setUpdatingServiceId] = useState<string | null>(null);
+  const [slotLabel, setSlotLabel] = useState('');
+  const [slotWindow, setSlotWindow] = useState('');
+  const [slotStatus, setSlotStatus] = useState<'idle' | 'saving'>('idle');
+  const [slotFeedback, setSlotFeedback] = useState('');
+  const [deletingSlotId, setDeletingSlotId] = useState<string | null>(null);
   const [discountCode, setDiscountCode] = useState('');
   const [discountPercent, setDiscountPercent] = useState('');
   const [discountStatus, setDiscountStatus] = useState<'idle' | 'saving'>('idle');
@@ -99,6 +115,49 @@ export default function AdminScreen() {
       setServiceFeedback(error instanceof Error ? error.message : 'Unable to delete service.');
     } finally {
       setDeletingServiceId(null);
+    }
+  };
+
+  const handleCreateAvailabilitySlot = async () => {
+    const trimmedLabel = slotLabel.trim();
+    const trimmedWindow = slotWindow.trim();
+
+    if (!trimmedLabel || !trimmedWindow) {
+      setSlotFeedback('Enter a day/label and time window.');
+      return;
+    }
+
+    setSlotStatus('saving');
+    setSlotFeedback('');
+
+    try {
+      await addDoc(collection(db, 'availabilitySlots'), {
+        label: trimmedLabel,
+        window: trimmedWindow,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      setSlotLabel('');
+      setSlotWindow('');
+      setSlotFeedback('Time slot created.');
+    } catch (error) {
+      setSlotFeedback(error instanceof Error ? error.message : 'Unable to create time slot.');
+    } finally {
+      setSlotStatus('idle');
+    }
+  };
+
+  const executeDeleteAvailabilitySlot = async (slotId: string, label: string) => {
+    setDeletingSlotId(slotId);
+
+    try {
+      await deleteDoc(doc(db, 'availabilitySlots', slotId));
+      setSlotFeedback(`Deleted ${label}.`);
+    } catch (error) {
+      setSlotFeedback(error instanceof Error ? error.message : 'Unable to delete time slot.');
+    } finally {
+      setDeletingSlotId(null);
     }
   };
 
@@ -191,6 +250,29 @@ export default function AdminScreen() {
         style: 'destructive',
         onPress: () => {
           void executeDeleteDiscountCode(discountId, code);
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteAvailabilitySlot = (slotId: string, label: string) => {
+    if (Platform.OS === 'web') {
+      const confirmed = typeof window !== 'undefined' ? window.confirm(`Delete "${label}"?`) : false;
+
+      if (confirmed) {
+        void executeDeleteAvailabilitySlot(slotId, label);
+      }
+
+      return;
+    }
+
+    Alert.alert('Delete time slot', `Delete "${label}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void executeDeleteAvailabilitySlot(slotId, label);
         },
       },
     ]);
@@ -336,6 +418,58 @@ export default function AdminScreen() {
       </SurfaceCard>
 
       <SurfaceCard>
+        <Text style={styles.sectionTitle}>Time Slots</Text>
+        <Text style={styles.rowText}>Slot Label</Text>
+        <TextInput
+          onChangeText={setSlotLabel}
+          placeholder="Monday"
+          placeholderTextColor={AppColors.line}
+          style={styles.input}
+          value={slotLabel}
+        />
+        <Text style={styles.rowText}>Time Window</Text>
+        <TextInput
+          onChangeText={setSlotWindow}
+          placeholder="9:00 AM - 11:00 AM"
+          placeholderTextColor={AppColors.line}
+          style={styles.input}
+          value={slotWindow}
+        />
+        <Pressable
+          onPress={handleCreateAvailabilitySlot}
+          style={[styles.primaryButton, slotStatus === 'saving' && styles.buttonDisabled]}>
+          <Text style={styles.primaryButtonText}>
+            {slotStatus === 'saving' ? 'Creating...' : 'Create time slot'}
+          </Text>
+        </Pressable>
+        {slotFeedback ? <Text style={styles.feedback}>{slotFeedback}</Text> : null}
+        {availabilityLoading ? <Text style={styles.rowText}>Loading time slots...</Text> : null}
+        {availabilityError ? (
+          <Text style={styles.rowText}>Unable to load time slots: {availabilityError}</Text>
+        ) : null}
+        {!availabilityLoading && !availabilityError && availabilitySlots.length === 0 ? (
+          <Text style={styles.rowText}>No Firestore time slots found yet.</Text>
+        ) : null}
+        {availabilitySlots.map((slot) => (
+          <View key={slot.id} style={styles.serviceCard}>
+            <View style={styles.serviceHeader}>
+              <Text style={styles.serviceName}>{slot.label}</Text>
+            </View>
+            <View style={styles.serviceFooter}>
+              <Text style={styles.servicePrice}>{slot.window}</Text>
+              <Pressable
+                onPress={() => handleDeleteAvailabilitySlot(slot.id, slot.label)}
+                style={[styles.deleteButton, deletingSlotId === slot.id && styles.buttonDisabled]}>
+                <Text style={styles.deleteButtonText}>
+                  {deletingSlotId === slot.id ? 'Deleting...' : 'Delete'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ))}
+      </SurfaceCard>
+
+      <SurfaceCard>
         <Text style={styles.sectionTitle}>Bookings</Text>
         {bookingsLoading ? <Text style={styles.rowText}>Loading bookings...</Text> : null}
         {bookingsError ? <Text style={styles.rowText}>Unable to load bookings: {bookingsError}</Text> : null}
@@ -458,8 +592,8 @@ export default function AdminScreen() {
 
       <SurfaceCard>
         <Text style={styles.sectionTitle}>Next backend tasks</Text>
-        <Text style={styles.todo}>Add edit controls for service pricing and active/inactive status.</Text>
-        <Text style={styles.todo}>Write bookings into Firestore when the schedule form is submitted.</Text>
+        <Text style={styles.todo}>Update booking page to display bookings date.</Text>
+        <Text style={styles.todo}>Update admin page to display bookings date.</Text>
         <Text style={styles.todo}>Add Firebase Functions for Stripe checkout and webhook handling.</Text>
       </SurfaceCard>
     </ScrollView>

@@ -67,7 +67,7 @@ export default function SignUpScreen() {
         </Pressable>
         {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
         <Link href="/signin" style={styles.link}>
-          Already have an account? Sign in.
+          Already have an account? <Text style={styles.boldText}>Sign in.</Text>
         </Link>
       </SurfaceCard>
     </ScrollView>
@@ -130,7 +130,10 @@ const styles = StyleSheet.create({
   link: {
     color: AppColors.accentDeep,
     fontFamily: AppFonts.body,
-    fontSize: 14,
+    fontSize: 16,
     marginTop: 8,
+  },
+  boldText: {
+    fontWeight: 'bold',
   },
 });

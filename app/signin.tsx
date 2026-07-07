@@ -52,11 +52,11 @@ export default function SignInScreen() {
           <Text style={styles.primaryLabel}>{loading ? 'Signing in...' : 'Sign in'}</Text>
         </Pressable>
         <Pressable onPress={handleReset}>
-          <Text style={styles.link}>Send password reset</Text>
+          <Text style={styles.link}>Send password <Text style={styles.boldText}>reset</Text></Text>
         </Pressable>
         {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
         <Link href="/signup" style={styles.link}>
-          Need an account? Create one here.
+          Need an account? Create one <Text style={styles.boldText}>here</Text>.
         </Link>
       </SurfaceCard>
     </ScrollView>
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   link: {
     color: AppColors.accentDeep,
     fontFamily: AppFonts.body,
-    fontSize: 14,
+    fontSize: 16,
     marginTop: 8,
   },
   feedback: {
@@ -121,5 +121,8 @@ const styles = StyleSheet.create({
     fontFamily: AppFonts.body,
     fontSize: 14,
     marginTop: 8,
+  },
+  boldText: {
+    fontWeight: 'bold',
   },
 });

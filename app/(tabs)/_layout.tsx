@@ -81,6 +81,7 @@ export default function TabLayout() {
           color: AppColors.ink,
           fontFamily: AppFonts.display,
           fontSize: 22,
+          
         },
         headerShadowVisible: false,
         headerLeft: HeaderLogo,
@@ -121,7 +122,7 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   menuWrap: {
-    marginRight: 12,
+    marginRight: 36,
     position: 'relative',
   },
   logo: {
